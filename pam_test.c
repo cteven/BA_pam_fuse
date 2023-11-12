@@ -38,7 +38,7 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
 /* PAM entry point for authentication verification */
 int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
     const char * password = NULL;
-    FILE * file = fopen("/home/steven/github/transparent_encryption/testfile.txt", "a+");
+    FILE * file = fopen("/home/foda-se/gitlab/transparent_enc_ba/testfile.txt", "a+");
     if( file == NULL) {
             return(PAM_IGNORE);
     }
