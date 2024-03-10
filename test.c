@@ -23,12 +23,13 @@ encrypt(const char *target_file, const char *source_file,
     int            eof;
     unsigned char  tag;
 
-    fp_s = fopen(source_file, "rb");
-    fp_t = fopen(target_file, "wb");
+    fp_s = fopen(source_file, "r");
+    fp_t = fopen(target_file, "w");
     crypto_secretstream_xchacha20poly1305_init_push(&st, header, key);
     fwrite(header, 1, sizeof header, fp_t);
     do {
         rlen = fread(buf_in, 1, sizeof buf_in, fp_s);
+        printf("rlen %lu\n",rlen);
         eof = feof(fp_s);
         tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
         crypto_secretstream_xchacha20poly1305_push(&st, buf_out, &out_len, buf_in, rlen,
@@ -64,6 +65,7 @@ decrypt(const char *target_file, const char *source_file,
     do {
         rlen = fread(buf_in, 1, sizeof buf_in, fp_s);
         eof = feof(fp_s);
+        printf("eof: %d\n",eof);
         if (crypto_secretstream_xchacha20poly1305_pull(&st, buf_out, &out_len, &tag,
                                                        buf_in, rlen, NULL, 0) != 0) {
             goto ret; /* corrupted chunk */
@@ -87,32 +89,22 @@ ret:
     return ret;
 }
 
-int
-main(void) 
-{
-  printf("1\n");
+int main() {
   unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
-  printf("2\n");
   if (sodium_init() != 0) {
-    printf("3\n");
     return 1;
   }
-  printf("4\n");
   crypto_secretstream_xchacha20poly1305_keygen(key);
-  printf("%s\n",key);
-  printf("5\n");
   if (encrypt("/home/foda-se/gitlab/transparent_enc_ba/encryptiontest/encrypted.txt", "/home/foda-se/gitlab/transparent_enc_ba/encryptiontest/original.txt", key) != 0) {
-    printf("4\n");
     return 1;
   }
   if (decrypt("/home/foda-se/gitlab/transparent_enc_ba/encryptiontest/decrypted.txt", "/home/foda-se/gitlab/transparent_enc_ba/encryptiontest/encrypted.txt", key) != 0) {
-    printf("5\n");
     return 1;
   }
   return 0;
 }
 
-// int main(void)
+// int main()
 // {
 
 
