@@ -1,4 +1,4 @@
-#define FUSE_USE_VERSION 30
+#define FUSE_USE_VERSION 39
 
 #include <fuse.h>
 #include <stdio.h>
@@ -10,8 +10,11 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <limits.h>
+#include <signal.h>
+#include <pwd.h>
+#include <grp.h>
 
-#include "../enc_utils/enc_utils.h"
+#include "../utils/enc_utils.h"
 #include <sodium.h>
 
 // damit vscode nicht mehr meckert
@@ -23,15 +26,24 @@
 
 unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
-static const char *tvbbl_dir = "/home/foda-se/private"; // Root directory
+static char *tvbbl_dir// Root directory
+
+void sigterm_handler(int signum) {
+    printf("Received SIGTERM signal. Exiting...\n");
+    explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+    exit(EXIT_SUCCESS);
+}
 
 static int tvbbl_getattr(const char *path, struct stat *stbuf) {
-  printf("path: %s\n", path);
+  printf("getattr path: %s\n", path);
+
   int res = 0;
 
-  // memset(stbuf, 0, sizeof(struct stat));
-  // char npath[PATH_MAX];
-  // sprintf(npath, "%s%s", tvbbl_dir, path);
+  memset(stbuf, 0, sizeof(struct stat));
+  char npath[PATH_MAX];
+  sprintf(npath, "%s%s", tvbbl_dir, path);
+  printf("path %s\n",npath);
+
 
   // res = lstat(npath, stbuf);
   // printf("res: %d\n",res);
@@ -40,26 +52,88 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   //   return -errno;
   // }
 
-  memset(stbuf, 0, sizeof(struct stat));
-  if ((strcmp(path, "/") == 0) ) {
-    stbuf->st_mode = S_IFDIR | 0700;    // ausschließlich dem owner des Ordners den Zugang erlauben
-    stbuf->st_nlink = 2;
-  } 
-  else {
-    char fpath[PATH_MAX];
-    sprintf(fpath, "%s%s", tvbbl_dir, path);
-    res = lstat(fpath, stbuf);
-    if (res == -1)
-      return -errno;
-  }
+  // memset(stbuf, 0, sizeof(struct stat));
+  // if (strcmp(path, "/") == 0) {
+  //       // Retrieve attributes of the mountpoint directory
+  //       res = lstat(tvbbl_dir, stbuf);
+  //       if (res == -1)
+  //           return -errno;
+  //   }
+  // else {
+  //   res = lstat(npath, stbuf);
+  //   stbuf->st_mode = stbuf->st_mode | 0777;
+  //   if (res == -1)
+  //     return -errno;
+  // }
 
-  return res;
+  // memset(stbuf, 0, sizeof(struct stat));
+  // if ((strcmp(path, "/") == 0) ) {
+  //   // stbuf->st_mode = S_IFDIR | 0700;    // ausschließlich dem owner des Ordners den Zugang erlauben
+  //   // stbuf->st_nlink = 2;
+
+  //   res = lstat(npath, stbuf); // Get attributes of the root directory
+  //   printf("res: %d\npwname %u\n", res, stbuf->st_uid);
+  //   if (res == -1)
+  //       return -errno;
+  // } 
+  // else {
+  //   res = lstat(npath, stbuf);
+  //   stbuf->st_mode = stbuf->st_mode | 0777;
+  //   if (res == -1)
+  //     return -errno;
+  // }
+
+  // struct passwd *pwd;
+  // struct group *grp;
+  // struct stat file_stat;
+
+  // // Check if the requested path exists
+  // if (strcmp(path, "/") == 0) {
+  //     // Root directory
+  //     res = lstat(npath, stbuf); // Get attributes of the root directory
+  //     printf("res: %d\npwname %u\n", res, stbuf->st_uid);
+  //     if (res == -1)
+  //         return -errno;
+  // } else {
+  //     // Other file or directory
+  //     res = lstat(npath, &file_stat); // Get attributes of the specified file or directory
+  //     if (res == -1)
+  //         return -errno;
+
+  //     // Copy the attributes to stbuf
+  //     memcpy(stbuf, &file_stat, sizeof(struct stat));
+  // }
+
+  // // Get owner information
+  // pwd = getpwuid(stbuf->st_uid);
+  // if (pwd == NULL)
+  //     return -errno;
+  // printf("pwd %s\n", pwd->pw_name);
+
+  // // Get group information
+  // grp = getgrgid(stbuf->st_gid);
+  // if (grp == NULL)
+  //     return -errno;
+
+  // // Update file mode if it is a directory
+  // if (S_ISDIR(stbuf->st_mode))
+  //     stbuf->st_mode |= S_IXUSR | S_IXGRP | S_IXOTH;
+
+  // // Update stbuf with owner and group information
+  // stbuf->st_uid = pwd->pw_uid; // Owner user ID
+  // stbuf->st_gid = grp->gr_gid; // Group ID
+
+  //   return 0;
+
+  // return res;
 }
 
 static int tvbbl_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
   printf("reading directory %s\n",path);
+
   char fpath[PATH_MAX];
   sprintf(fpath, "%s%s", tvbbl_dir, path);
+
   DIR *dp = opendir(fpath);
   if (dp == NULL)
     return -errno;
@@ -125,10 +199,12 @@ static int tvbbl_truncate(const char *path, off_t size) {
 
 static int tvbbl_utimens(const char *path, const struct timespec ts[2]) {
   printf("utimes %s\n",path);
+
   char fpath[PATH_MAX];
   sprintf(fpath, "%s%s", tvbbl_dir, path);
-  int res = utimensat(0, fpath, ts, AT_SYMLINK_NOFOLLOW);
-  if (res == -1)
+
+  int val = utimensat(0, fpath, ts, AT_SYMLINK_NOFOLLOW);
+  if (val == -1)
     return -errno;
 
   return 0;
@@ -181,7 +257,7 @@ static int tvbbl_open(const char *path, struct fuse_file_info *fi) {
   sprintf(dec_path, "%s/dec_%s", tvbbl_dir, ++path);
   printf("o enc path %s\n", enc_path);
 
-  if (decrypt_file(dec_path, enc_path, key) != 0) {
+  if (decrypt_file(enc_path, dec_path, key) != 0) {
     printf("\nrip\n\n");
     return 1;
   }
@@ -202,7 +278,7 @@ static int tvbbl_release(const char* path, struct fuse_file_info *fi) {
   sprintf(enc_path, "%s/enc_%s", tvbbl_dir, ++path);
   printf("r enc path %s\n", enc_path);
 
-  if (encrypt_file(enc_path, dec_path, key) != 0) {
+  if (encrypt_file(dec_path, enc_path, key) != 0) {
     return 1;
   }
 
@@ -241,47 +317,71 @@ static struct fuse_operations tvbbl_oper = {
 
 int main(int argc, char *argv[]) {
 
+  printf("init\n");
+  int res = lstat(tvbbl_dir, &tvbbl_dir_stat);
+  printf("lstat %d\n", res);
+  
+  if ( res == -1) {
+    perror("lstat info about mountpoint");
+  } 
+  puts("init ending");
+
+  // if (signal(SIGTERM, sigterm_handler) == SIG_ERR) {
+  //   perror("signal");
+  //   exit(EXIT_FAILURE);
+  // }
+  // puts("testfuse");
+
+  // char * fuse_arguments[3] = {argv[0], argv[2],argv[3]};
+  // int pipe_fd = atoi(argv[1]);
+  // printf("fd_string int: %d\n",pipe_fd);
+
+  // uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+
+  // if(read(pipe_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES) < 0) {
+  //   perror("error reading key from pipe");
+  //   exit(EXIT_FAILURE);
+  // }
+
+  // printf("received message(hex):\n");
+  // for( int i=0; i<32; ++i ) printf( "%x ", buffer[i] ); 
+  //   printf( "\n" );
+
+  tvbbl_dir = strdup(argv[2]);
+  printf("new data_dir %s\n",tvbbl_dir);
+
+
   unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
   if (sodium_init() != 0) {
     return 1;
   }
-  // crypto_secretstream_xchacha20poly1305_keygen(key);
-  
+  crypto_secretstream_xchacha20poly1305_keygen(key);
+  puts("key generated");
   // implement PIPE here
 
-  // uid_t uid = getuid();
-  // gid_t gid = getgid();
-
-  // printf("uid: %d\ngid: %d\n",(int)uid, (int)gid);
-
-  // if (seteuid(uid) != 0) {
-  //   perror("seteuid");
-  //   exit(EXIT_FAILURE);
-  // }
-  // if (setegid(gid) != 0) {
-  //   perror("setegid");
-  //   exit(EXIT_FAILURE);
-  // }
-
-  // uid = geteuid();
-  // gid = getegid();
-
-  // printf("uid: %d\ngid: %d\n",(int)uid, (int)gid);
-
-  // uint8_t buffer[32];
   // mkfifo(FIFO_NAME, 0660);
 
-  // int fifo_fd = open(FIFO_NAME, O_RDONLY);
+  
+  // int fifo_fd = fdopen(pipe_fd, "r");
   // if (fifo_fd < 0) {
   //   perror("error opening pipe");
   //   exit(EXIT_FAILURE);
   // }
+
+  // ssize_t n;
+  // do {
+  //   n = read(fifo_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+  //   printf("read %lu bytes\n",n);
+  //   if (n < 0 ) {
+  //     perror("error reading key from pipe");
+  //     exit(EXIT_FAILURE);
+  //   }
+  // } while (n);
   
-  // ssize_t n = 1;
   
   // while(n) {
   //   puts("test");
-  //   n = read(fifo_fd, buffer, 32);
+  //   n = read(fifo_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   //   printf("read %lu bytes\n",n);
   //   if (n < 0 ) {
   //     perror("error reading key from pipe");
@@ -289,15 +389,16 @@ int main(int argc, char *argv[]) {
   //   }
   // }
 
-  // printf("received message(hex):\n");
-  // for( int i=0; i<32; ++i ) printf( "%x ", buffer[i] ); 
-  //   printf( "\n" );
+  
 
-  // memcpy(key, buffer, 32);
 
+  // memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+  // explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+  
+
+  // close(pipe_fd);
   // close(fifo_fd);
-
-
+  puts("starting fuse");
   return fuse_main(argc, argv, &tvbbl_oper, NULL);
   
 }
