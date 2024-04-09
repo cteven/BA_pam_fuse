@@ -26,13 +26,33 @@
 
 unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
-static char *tvbbl_dir// Root directory
+static char *tvbbl_dir;// Root directory
 
 void sigterm_handler(int signum) {
     printf("Received SIGTERM signal. Exiting...\n");
     explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+    // fuse_unmount(mount_dir,NULL);
     exit(EXIT_SUCCESS);
 }
+
+// static int tvbbl_getattr(const char *path, struct stat *stbuf) {
+//   int res = 0;
+
+//   int file_type = strcmp(path, "/");
+
+//   if (( file_type == 0) ) {
+//     stbuf->st_mode = S_IFDIR | S_IRWXU;
+//     stbuf->st_nlink = 2;
+//   } 
+//   else {
+//     char fpath[PATH_MAX];
+//     sprintf(fpath, "%s%s", tvbbl_dir, path);
+//     res = lstat(fpath, stbuf);
+//     if (res == -1)
+//       return -errno;
+//   }
+//   return res;
+// }
 
 static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   printf("getattr path: %s\n", path);
@@ -45,12 +65,14 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   printf("path %s\n",npath);
 
 
-  // res = lstat(npath, stbuf);
-  // printf("res: %d\n",res);
-  // printf("uid, gid: %d, %d\n", stbuf->st_uid, stbuf->st_gid);
-  // if (res == -1) {
-  //   return -errno;
-  // }
+  res = lstat(npath, stbuf);
+  printf("res: %d\n",res);
+  printf("uid, gid: %d, %d\n", stbuf->st_uid, stbuf->st_gid);
+  if (res == -1) {
+    return res;
+  }
+ 
+  return 0;
 
   // memset(stbuf, 0, sizeof(struct stat));
   // if (strcmp(path, "/") == 0) {
@@ -68,13 +90,13 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
 
   // memset(stbuf, 0, sizeof(struct stat));
   // if ((strcmp(path, "/") == 0) ) {
-  //   // stbuf->st_mode = S_IFDIR | 0700;    // ausschließlich dem owner des Ordners den Zugang erlauben
-  //   // stbuf->st_nlink = 2;
+  //   stbuf->st_mode = S_IFDIR | 0777;    // ausschließlich dem owner des Ordners den Zugang erlauben
+  //   stbuf->st_nlink = 2;
 
-  //   res = lstat(npath, stbuf); // Get attributes of the root directory
-  //   printf("res: %d\npwname %u\n", res, stbuf->st_uid);
-  //   if (res == -1)
-  //       return -errno;
+  //   // res = lstat(npath, stbuf); // Get attributes of the root directory
+  //   // printf("res: %d\npwname %u\n", res, stbuf->st_uid);
+  //   // if (res == -1)
+  //   //     return -errno;
   // } 
   // else {
   //   res = lstat(npath, stbuf);
@@ -82,6 +104,7 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   //   if (res == -1)
   //     return -errno;
   // }
+  // return 0;
 
   // struct passwd *pwd;
   // struct group *grp;
@@ -316,89 +339,55 @@ static struct fuse_operations tvbbl_oper = {
 };
 
 int main(int argc, char *argv[]) {
+  if(argc != 5) {
+    fprintf(stderr, "command line arguments\n");
+    exit(EXIT_FAILURE);
+  }
+  if (signal(SIGTERM, sigterm_handler) == SIG_ERR) {
+    perror("signal");
+    exit(EXIT_FAILURE);
+  }
 
-  printf("init\n");
-  int res = lstat(tvbbl_dir, &tvbbl_dir_stat);
-  printf("lstat %d\n", res);
-  
-  if ( res == -1) {
-    perror("lstat info about mountpoint");
-  } 
-  puts("init ending");
+  printf("This process is %d\n", getpid());
+  printf("The real user ID is %d\n", getuid());
+  printf("The real group ID is %d\n", getuid());
+  printf("The effective user ID is %d\n", geteuid());
+  printf("The effective group ID is %d\n", getegid());
 
-  // if (signal(SIGTERM, sigterm_handler) == SIG_ERR) {
-  //   perror("signal");
-  //   exit(EXIT_FAILURE);
-  // }
-  // puts("testfuse");
+  char * fuse_arguments[3] = {argv[0], argv[1],argv[2]};
+  printf("fuse args: %s %s %s\n",argv[0], argv[1],argv[2]);
 
-  // char * fuse_arguments[3] = {argv[0], argv[2],argv[3]};
-  // int pipe_fd = atoi(argv[1]);
-  // printf("fd_string int: %d\n",pipe_fd);
-
-  // uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
-
-  // if(read(pipe_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES) < 0) {
-  //   perror("error reading key from pipe");
-  //   exit(EXIT_FAILURE);
-  // }
-
-  // printf("received message(hex):\n");
-  // for( int i=0; i<32; ++i ) printf( "%x ", buffer[i] ); 
-  //   printf( "\n" );
-
-  tvbbl_dir = strdup(argv[2]);
+  tvbbl_dir = strdup(argv[3]);
   printf("new data_dir %s\n",tvbbl_dir);
 
+  int pipe_fd = atoi(argv[4]);
+  printf("fd_string int: %d\n",pipe_fd);
 
-  unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
-  if (sodium_init() != 0) {
-    return 1;
+  uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+
+  if(read(pipe_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES) < 0) {
+    perror("error reading key from pipe");
+    exit(EXIT_FAILURE);
   }
-  crypto_secretstream_xchacha20poly1305_keygen(key);
-  puts("key generated");
-  // implement PIPE here
 
-  // mkfifo(FIFO_NAME, 0660);
+  printf("received message(hex):\n");
+  for( int i=0; i<32; ++i ) printf( "%x ", buffer[i] ); 
+    printf( "\n" );
 
-  
-  // int fifo_fd = fdopen(pipe_fd, "r");
-  // if (fifo_fd < 0) {
-  //   perror("error opening pipe");
-  //   exit(EXIT_FAILURE);
+  // unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+  // if (sodium_init() != 0) {
+  //   return 1;
   // }
+  // crypto_secretstream_xchacha20poly1305_keygen(key);
+  // puts("key generated");
 
-  // ssize_t n;
-  // do {
-  //   n = read(fifo_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
-  //   printf("read %lu bytes\n",n);
-  //   if (n < 0 ) {
-  //     perror("error reading key from pipe");
-  //     exit(EXIT_FAILURE);
-  //   }
-  // } while (n);
-  
-  
-  // while(n) {
-  //   puts("test");
-  //   n = read(fifo_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
-  //   printf("read %lu bytes\n",n);
-  //   if (n < 0 ) {
-  //     perror("error reading key from pipe");
-  //     exit(EXIT_FAILURE);
-  //   }
-  // }
-
+  memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+  explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   
 
-
-  // memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
-  // explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
-  
-
-  // close(pipe_fd);
+  close(pipe_fd);
   // close(fifo_fd);
   puts("starting fuse");
-  return fuse_main(argc, argv, &tvbbl_oper, NULL);
+  return fuse_main(3, fuse_arguments, &tvbbl_oper, NULL);
   
 }

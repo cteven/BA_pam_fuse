@@ -23,6 +23,8 @@ cp pam_test.so $PAM_MODULES_DIR
 chown root:root $PAM_MODULES_DIR/pam_test.so
 chmod 755 $PAM_MODULES_DIR/pam_test.so
 
+cd user_fuse
+./script.sh
 
 # find /lib -name pam_test.so -print
 # locate -b '\pam_unix.so'
