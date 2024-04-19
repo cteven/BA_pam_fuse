@@ -52,7 +52,7 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   if (res == -1) {
     perror("lstat");
     printf("errno: %d\n", errno);
-    return res;
+    return -errno;
   }
  
   return 0;
