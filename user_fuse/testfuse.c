@@ -230,16 +230,9 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "command line arguments\n");
     exit(EXIT_FAILURE);
   }
-  if (signal(SIGTERM, sigterm_handler) == SIG_ERR) {
-    perror("signal");
-    exit(EXIT_FAILURE);
-  }
-
 
   char * fuse_arguments[3] = {argv[0], argv[1],argv[2]};
-  
   tvbbl_dir = strdup(argv[3]);
-  
   int pipe_fd = atoi(argv[4]);
   
   uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
@@ -253,19 +246,11 @@ int main(int argc, char *argv[]) {
   for( int i=0; i<32; ++i ) printf( "%x ", buffer[i] ); 
     printf( "\n" );
 
-  // unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
-  // if (sodium_init() != 0) {
-  //   return 1;
-  // }
-  // crypto_secretstream_xchacha20poly1305_keygen(key);
-  // puts("key generated");
-
   memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   
 
   close(pipe_fd);
-  // close(fifo_fd);
   puts("starting fuse");
   return fuse_main(3, fuse_arguments, &tvbbl_oper, NULL);
   
