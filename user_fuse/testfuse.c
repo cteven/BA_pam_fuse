@@ -28,13 +28,6 @@ unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
 static char *tvbbl_dir;// Root directory
 
-void sigterm_handler(int signum) {
-    printf("Received SIGTERM signal. Exiting...\n");
-    explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
-    // fuse_unmount(mount_dir,NULL);
-    exit(EXIT_SUCCESS);
-}
-
 static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   printf("getattr path: %s\n", path);
 
