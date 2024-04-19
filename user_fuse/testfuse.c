@@ -35,25 +35,6 @@ void sigterm_handler(int signum) {
     exit(EXIT_SUCCESS);
 }
 
-// static int tvbbl_getattr(const char *path, struct stat *stbuf) {
-//   int res = 0;
-
-//   int file_type = strcmp(path, "/");
-
-//   if (( file_type == 0) ) {
-//     stbuf->st_mode = S_IFDIR | S_IRWXU;
-//     stbuf->st_nlink = 2;
-//   } 
-//   else {
-//     char fpath[PATH_MAX];
-//     sprintf(fpath, "%s%s", tvbbl_dir, path);
-//     res = lstat(fpath, stbuf);
-//     if (res == -1)
-//       return -errno;
-//   }
-//   return res;
-// }
-
 static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   printf("getattr path: %s\n", path);
 
@@ -69,86 +50,12 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   printf("res: %d\n",res);
   printf("uid, gid: %d, %d\n", stbuf->st_uid, stbuf->st_gid);
   if (res == -1) {
+    perror("lstat");
+    printf("errno: %d\n", errno);
     return res;
   }
  
   return 0;
-
-  // memset(stbuf, 0, sizeof(struct stat));
-  // if (strcmp(path, "/") == 0) {
-  //       // Retrieve attributes of the mountpoint directory
-  //       res = lstat(tvbbl_dir, stbuf);
-  //       if (res == -1)
-  //           return -errno;
-  //   }
-  // else {
-  //   res = lstat(npath, stbuf);
-  //   stbuf->st_mode = stbuf->st_mode | 0777;
-  //   if (res == -1)
-  //     return -errno;
-  // }
-
-  // memset(stbuf, 0, sizeof(struct stat));
-  // if ((strcmp(path, "/") == 0) ) {
-  //   stbuf->st_mode = S_IFDIR | 0777;    // ausschließlich dem owner des Ordners den Zugang erlauben
-  //   stbuf->st_nlink = 2;
-
-  //   // res = lstat(npath, stbuf); // Get attributes of the root directory
-  //   // printf("res: %d\npwname %u\n", res, stbuf->st_uid);
-  //   // if (res == -1)
-  //   //     return -errno;
-  // } 
-  // else {
-  //   res = lstat(npath, stbuf);
-  //   stbuf->st_mode = stbuf->st_mode | 0777;
-  //   if (res == -1)
-  //     return -errno;
-  // }
-  // return 0;
-
-  // struct passwd *pwd;
-  // struct group *grp;
-  // struct stat file_stat;
-
-  // // Check if the requested path exists
-  // if (strcmp(path, "/") == 0) {
-  //     // Root directory
-  //     res = lstat(npath, stbuf); // Get attributes of the root directory
-  //     printf("res: %d\npwname %u\n", res, stbuf->st_uid);
-  //     if (res == -1)
-  //         return -errno;
-  // } else {
-  //     // Other file or directory
-  //     res = lstat(npath, &file_stat); // Get attributes of the specified file or directory
-  //     if (res == -1)
-  //         return -errno;
-
-  //     // Copy the attributes to stbuf
-  //     memcpy(stbuf, &file_stat, sizeof(struct stat));
-  // }
-
-  // // Get owner information
-  // pwd = getpwuid(stbuf->st_uid);
-  // if (pwd == NULL)
-  //     return -errno;
-  // printf("pwd %s\n", pwd->pw_name);
-
-  // // Get group information
-  // grp = getgrgid(stbuf->st_gid);
-  // if (grp == NULL)
-  //     return -errno;
-
-  // // Update file mode if it is a directory
-  // if (S_ISDIR(stbuf->st_mode))
-  //     stbuf->st_mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-
-  // // Update stbuf with owner and group information
-  // stbuf->st_uid = pwd->pw_uid; // Owner user ID
-  // stbuf->st_gid = grp->gr_gid; // Group ID
-
-  //   return 0;
-
-  // return res;
 }
 
 static int tvbbl_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
@@ -254,19 +161,6 @@ static int tvbbl_create(const char *path, mode_t mode, struct fuse_file_info *fi
     return -errno;
 
   close(fd);
-
-  // char dec_path[PATH_MAX], enc_path[PATH_MAX];
-  
-  // sprintf(dec_path, "%s/origin_%s", tvbbl_dir, path++);
-  // printf("new origin path %s\n", dec_path);
-
-  // sprintf(enc_path, "%s/enc_%s", tvbbl_dir, path++);
-  // printf("enc path %s\n", enc_path);
-
-  // if (encrypt_file(enc_path, dec_path, key) != 0) {
-  //   return 1;
-  // }
-
   return 0;
 }
 
@@ -348,21 +242,13 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  printf("This process is %d\n", getpid());
-  printf("The real user ID is %d\n", getuid());
-  printf("The real group ID is %d\n", getuid());
-  printf("The effective user ID is %d\n", geteuid());
-  printf("The effective group ID is %d\n", getegid());
 
   char * fuse_arguments[3] = {argv[0], argv[1],argv[2]};
-  printf("fuse args: %s %s %s\n",argv[0], argv[1],argv[2]);
-
+  
   tvbbl_dir = strdup(argv[3]);
-  printf("new data_dir %s\n",tvbbl_dir);
-
+  
   int pipe_fd = atoi(argv[4]);
-  printf("fd_string int: %d\n",pipe_fd);
-
+  
   uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
   if(read(pipe_fd, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES) < 0) {
