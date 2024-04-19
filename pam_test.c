@@ -19,11 +19,13 @@
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
+#include <sys/mount.h>
 
 #include "argon2.h"
 #include <sodium.h>
 
-
+#define MOUNT_DIRECTORY "/home/%s/private"
+#define DATA_DIRECTORY "/home/%s/.private"
 #define HASHLEN crypto_secretstream_xchacha20poly1305_KEYBYTES
 #define SALTLEN 16
 #define BUFLEN 32
@@ -86,7 +88,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 
   // create directory to mount fuse on
   char dir_name[PATH_MAX];
-  sprintf(dir_name, "/home/%s/private", pw->pw_name);
+  sprintf(dir_name, MOUNT_DIRECTORY, pw->pw_name);
   printf("trying to create dir %s\n", dir_name);
 
   int s_dir = mkdir(dir_name, 0770);
@@ -100,7 +102,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 
   // create directory to save data in
   char data_dir_name[PATH_MAX];
-  sprintf(data_dir_name, "/home/%s/.private", pw->pw_name);
+  sprintf(data_dir_name, DATA_DIRECTORY, pw->pw_name);
   printf("trying to create dir %s\n", data_dir_name);
 
   s_dir = mkdir(data_dir_name, 0770);
@@ -154,13 +156,6 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
   explicit_bzero(hash, HASHLEN);
   free(pwd);
 
-  // save FUSE PID in file in /run/
-  int pid_file = open("/run/testfuse.pid", O_CREAT | O_WRONLY);
-  if ( pid_file == -1) {
-    perror("opening .pid file\n");
-    return PAM_IGNORE;
-  }
-
   printf("authentication ending\n");
   return(PAM_IGNORE);
 }
@@ -169,23 +164,32 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   printf("session ending\n");
   
-  int pid_file = open("/run/testfuse.pid", O_RDONLY);
-  if ( pid_file == -1) {
-    perror("opening .pid file\n");
-    return PAM_IGNORE;
-  }
-  
-  char buf[BUFLEN];
-  if (read(pid_file, buf, BUFLEN) < 0) {
-    perror("reading .pid file\n");
-    return PAM_IGNORE;
-  }
-
-  int fuse_pid = atoi(buf);
-
-  if (kill(fuse_pid, SIGTERM) == -1) {
-      perror("sending SIGTERM\n");
+  struct passwd *pw;
+  const char *user;
+  if (pam_get_user(pamh, &user, NULL) != PAM_SUCCESS)
+  {
+      exit_pam("failed to get username\n");
       return PAM_IGNORE;
+  }
+  if ((pw = getpwnam(user)) == NULL)
+  {
+      exit_pam("couldn't find username\n");
+      return PAM_IGNORE;
+  }
+  if (strcmp(pw->pw_name, "root") == 0 ){
+    exit_pam("fuse not working for root\n");
+    return PAM_IGNORE;
+  }
+
+  char mount_dir[PATH_MAX];
+  sprintf(mount_dir, MOUNT_DIRECTORY, pw->pw_name);
+
+  printf("unmounting filesystem\n");
+  
+  if (umount(mount_dir) < 0) {
+    perror("umount");
+    exit_pam("unmounting failed");
+    return PAM_IGNORE;
   }
 
   return(PAM_IGNORE);
