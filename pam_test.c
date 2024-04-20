@@ -21,8 +21,8 @@
 #include <errno.h>
 #include <sys/mount.h>
 
+#include "utils/enc_utils.h"
 #include "argon2.h"
-#include <sodium.h>
 
 #define MOUNT_DIRECTORY "/home/%s/private"
 #define DATA_DIRECTORY "/home/%s/.private"
@@ -36,6 +36,45 @@ static uint8_t hash[HASHLEN];
 void exit_pam(char * msg) {
   fprintf(stderr, "error: %s", msg);
   explicit_bzero(hash, HASHLEN);
+}
+
+int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content) {
+  size_t len_content = strlen(content);
+
+  char filename_dec[PATH_MAX];
+  sprintf(filename_dec, "%s/validation_file_dec", directory);
+
+  int fd = open(filename_dec, O_WRONLY | O_CREAT, S_IRWXU | S_IRGRP | S_IWGRP);
+  if (fd == -1) {
+    return -1;
+  }
+  printf("content: %s\n", content);
+  int w = write(fd, content, len_content);
+  if (w == -1 || w != len_content) {
+    return -1;
+  }
+  close(fd);
+
+  int fd2 = open(filename_dec, O_RDONLY);
+  if (fd2 == -1) {
+    return -1;
+  }
+  char * buf = malloc(len_content+1);
+  w = read(fd2, buf, len_content);
+  if (w == -1 || w != len_content) {
+    perror("read in pam");
+    return -1;
+  }
+  printf("buf in pam %s\n", buf);
+  close(fd2);
+
+  char filename_enc[PATH_MAX];
+  sprintf(filename_enc, "%s/validation_file", directory);
+
+  encrypt_file(filename_dec, filename_enc, hash);
+
+  unlink(filename_dec);
+  return 0;
 }
 
 /* PAM entry point for authentication verification */
@@ -125,6 +164,13 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
   char read_end_pipe_fd[128];
   sprintf(read_end_pipe_fd, "%d", pipefd[0]); // write fd of reading pipe to a string
   
+  printf("creating and validating file\n");
+  if (create_and_encrypt_validation_file(data_dir_name, data_dir_name) != 0 ) {
+    perror("");
+    exit_pam("creating and encrypting validation file");
+    return PAM_IGNORE;
+  }
+
   // start fuse
   int pid = fork();
   if (pid == -1) {
@@ -163,7 +209,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 /* PAM entry point for session cleanup */
 int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   printf("session ending\n");
-  
+
   struct passwd *pw;
   const char *user;
   if (pam_get_user(pamh, &user, NULL) != PAM_SUCCESS)
@@ -183,8 +229,6 @@ int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **a
 
   char mount_dir[PATH_MAX];
   sprintf(mount_dir, MOUNT_DIRECTORY, pw->pw_name);
-
-  printf("unmounting filesystem\n");
   
   if (umount(mount_dir) < 0) {
     perror("umount");
