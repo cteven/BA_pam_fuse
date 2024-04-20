@@ -198,17 +198,63 @@ static int tvbbl_release(const char* path, struct fuse_file_info *fi) {
   return 0;
 }
 
-static int tvbbl_rename(const char *oldpath, const char *newpath)
-{
-    char oldfpath[PATH_MAX];
-    char newfpath[PATH_MAX];
-    sprintf(oldfpath, "%s%s", tvbbl_dir, oldpath);
-    sprintf(newfpath, "%s%s", tvbbl_dir, newpath);
-    int res = rename(oldfpath, newfpath);
-    if (res == -1)
-        return -errno;
+static int tvbbl_rename(const char *oldpath, const char *newpath) {
+  char oldfpath[PATH_MAX];
+  char newfpath[PATH_MAX];
+  sprintf(oldfpath, "%s%s", tvbbl_dir, oldpath);
+  sprintf(newfpath, "%s%s", tvbbl_dir, newpath);
+  int res = rename(oldfpath, newfpath);
+  if (res == -1)
+    return -errno;
 
-    return 0;
+  return 0;
+}
+
+static void tvbbl_destroy(void *private_data) {
+  printf("unmounting filesystem...");
+  explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+}
+
+int validate_key() {
+  printf("valdating key\n");
+  char * validation_filename = "validation_file";
+  size_t len_directory_path = strlen(tvbbl_dir);
+  printf("dir len = %lu\n", len_directory_path);
+
+  char dec_path[PATH_MAX], enc_path[PATH_MAX];
+
+  sprintf(enc_path, "%s/%s", tvbbl_dir, validation_filename);
+  printf("o new dec path %s\n", dec_path);
+
+  sprintf(dec_path, "%s/dec_%s", tvbbl_dir, validation_filename);
+  printf("o enc path %s\n", enc_path);
+
+  if (decrypt_file(enc_path, dec_path, key) != 0) {
+    printf("\nrip\n\n");
+    return 1;
+  }
+
+  char * buf = malloc(len_directory_path+1);
+
+  int fd = open(dec_path, O_RDONLY);
+  if (fd == -1) {
+    return -1;
+  }
+
+  int w = read(fd, buf, len_directory_path);
+  if (w == -1 || w != len_directory_path) {
+    return -1;
+  }
+  buf[len_directory_path] = '\0';
+  printf("buf %s\n", buf);
+  printf("tvbbl dir %s\n", tvbbl_dir);
+  if(strcmp(buf, tvbbl_dir) != 0) {
+    return -1;
+  }
+  close(fd);
+  unlink(dec_path);
+
+  return 0;
 }
 
 static struct fuse_operations tvbbl_oper = {
@@ -223,6 +269,7 @@ static struct fuse_operations tvbbl_oper = {
   .unlink     = tvbbl_unlink,
   .release    = tvbbl_release,
   .rename     = tvbbl_rename,
+  .destroy    = tvbbl_destroy,
 };
 
 int main(int argc, char *argv[]) {
@@ -249,6 +296,12 @@ int main(int argc, char *argv[]) {
   memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   
+  if (validate_key() == -1 ) {
+    fprintf(stderr, "the sent key could not be validated!");
+    explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
+    exit(EXIT_FAILURE);
+  }
+  printf("validated\n");
 
   close(pipe_fd);
   puts("starting fuse");
