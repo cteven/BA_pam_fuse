@@ -12,7 +12,7 @@ PAM_MODULES_DIR=$(dirname $(find /usr -name pam_unix.so))
 
 echo $PAM_MODULES_DIR/pam_test.so
 
-gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_test.so pam_test.c phc-winner-argon2/libargon2.so.1 -lsodium
+gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_test.so pam_test.c ./utils/enc_utils.c phc-winner-argon2/libargon2.so.1 -lsodium
 
 if [[ -f $PAM_MODULES_DIR/pam_test.so ]] # maybe useless
 then 
