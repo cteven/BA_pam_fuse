@@ -22,7 +22,6 @@
 // #include <linux/fcntl.h>
 
 #define BUFFER_SIZE 1024
-#define FIFO_NAME "/tmp/pam_fifo1"
 
 unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
@@ -211,7 +210,7 @@ static int tvbbl_rename(const char *oldpath, const char *newpath) {
 }
 
 static void tvbbl_destroy(void *private_data) {
-  printf("unmounting filesystem...");
+  printf("unmounting filesystem...\n");
   explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
 }
 
