@@ -19,7 +19,6 @@ int encrypt_file(const char *source_file, const char *target_file, const unsigne
   size_t         rlen;
   int            eof;
   unsigned char  tag = 0;
-  int ret;
 
   f_source_file = fopen(source_file, "r");
   if(f_source_file == NULL) {
