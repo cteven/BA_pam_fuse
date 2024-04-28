@@ -15,7 +15,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <signal.h>
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
@@ -84,9 +83,9 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
   size_t len_content = strlen(content);
 
   char filename_dec[PATH_MAX];
-  sprintf(filename_dec, "%s/validation_file_dec", directory);
+  sprintf(filename_dec, "%s/.validation_file_dec", directory);
   char filename_enc[PATH_MAX];
-  sprintf(filename_enc, "%s/validation_file", directory);
+  sprintf(filename_enc, "%s/.validation_file", directory);
 
   
   int ret = access(filename_enc, F_OK);
@@ -137,10 +136,6 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     return PAM_IGNORE;
   }
 
-  const char * password = NULL;
-
-  pam_get_authtok(pamh, PAM_AUTHTOK, &password, NULL);
-
   // create directory to mount fuse on
   char dir_name[PATH_MAX];
   sprintf(dir_name, MOUNT_DIRECTORY, pw->pw_name);
@@ -149,6 +144,10 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     printf("fuse is running already\n");
     return PAM_IGNORE;
   }
+
+  const char * password = NULL;
+  pam_get_authtok(pamh, PAM_AUTHTOK, &password, NULL);
+
 
   // compute hash from user password
   compute_hash(password);
