@@ -2,3 +2,7 @@ libsodium*
 phc-winner*
 .vscode*
 vcpkg
+*.so
+tesfuse
+./testing
+./encryptiontest
