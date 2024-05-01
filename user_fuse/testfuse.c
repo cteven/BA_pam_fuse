@@ -17,22 +17,18 @@
 #include "../utils/enc_utils.h"
 #include <sodium.h>
 
-// damit vscode nicht mehr meckert
-// #include <linux/limits.h>
-// #include <linux/fcntl.h>
-
 #define BUFFER_SIZE 1024
 
 unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
-static char *tvbbl_dir;// Root directory
+static char *data_dir; // Root directory
 
-static int tvbbl_getattr(const char *path, struct stat *stbuf) {
+static int enc_dir_getattr(const char *path, struct stat *stbuf) {
   int res = 0;
 
   memset(stbuf, 0, sizeof(struct stat));
   char npath[PATH_MAX];
-  sprintf(npath, "%s%s", tvbbl_dir, path);
+  sprintf(npath, "%s%s", data_dir, path);
 
   res = lstat(npath, stbuf);
   if (res == -1) {
@@ -41,9 +37,9 @@ static int tvbbl_getattr(const char *path, struct stat *stbuf) {
   return 0;
 }
 
-static int tvbbl_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
+static int enc_dir_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
+  sprintf(fpath, "%s%s", data_dir, path);
 
   DIR *dp = opendir(fpath);
   if (dp == NULL)
@@ -59,50 +55,45 @@ static int tvbbl_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
   return 0;
 }
 
-static int tvbbl_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-  printf("reading %s\n", path);
-  int fd;
-  int res;
-
+static int enc_dir_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
-  fd = open(fpath, O_RDONLY);
+  sprintf(fpath, "%s%s", data_dir, path);
+
+  int fd = open(fpath, O_RDONLY);
   if (fd == -1)
     return -errno;
 
-  res = pread(fd, buf, size, offset);
-  if (res == -1)
+  int res = pread(fd, buf, size, offset);
+  if (res == -1) {
     res = -errno;
+  }
+    
+  close(fd);
 
-  printf("read %s\n",buf);
-  printf("offset %ld\nread %d bytes\nsupposed to read: %lu\n",offset, res, size);
+  return res;
+}
+
+static int enc_dir_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+  char fpath[PATH_MAX];
+  sprintf(fpath, "%s%s", data_dir, path);
+
+  int fd = open(fpath, O_WRONLY);
+  if (fd == -1) {
+    return -errno;
+  }
+
+  int res = pwrite(fd, buf, size, offset);
+  if (res == -1) {
+    res = -errno;
+  }
+
   close(fd);
   return res;
 }
 
-static int tvbbl_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-  printf("writing %s\n", path);
-  int fd;
-  int res;
-
+static int enc_dir_truncate(const char *path, off_t size) {
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
-  fd = open(fpath, O_WRONLY);
-  if (fd == -1)
-    return -errno;
-
-  res = pwrite(fd, buf, size, offset);
-  if (res == -1)
-    res = -errno;
-
-  printf("wrote %d bytes\nsupposed to write: %lu\n", res, size);
-  close(fd);
-  return res;
-}
-
-static int tvbbl_truncate(const char *path, off_t size) {
-  char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
+  sprintf(fpath, "%s%s", data_dir, path);
   int res = truncate(fpath, size);
   if (res == -1)
     return -errno;
@@ -110,9 +101,9 @@ static int tvbbl_truncate(const char *path, off_t size) {
   return 0;
 }
 
-static int tvbbl_utimens(const char *path, const struct timespec ts[2]) {
+static int enc_dir_utimens(const char *path, const struct timespec ts[2]) {
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
+  sprintf(fpath, "%s%s", data_dir, path);
 
   int val = utimensat(0, fpath, ts, AT_SYMLINK_NOFOLLOW);
   if (val == -1)
@@ -121,9 +112,9 @@ static int tvbbl_utimens(const char *path, const struct timespec ts[2]) {
   return 0;
 }
 
-static int tvbbl_unlink(const char *path) {
+static int enc_dir_unlink(const char *path) {
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
+  sprintf(fpath, "%s%s", data_dir, path);
   int res = unlink(fpath);
   if (res == -1)
     return -errno;
@@ -131,12 +122,12 @@ static int tvbbl_unlink(const char *path) {
   return 0;
 }
 
-static int tvbbl_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+static int enc_dir_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
   int fd;
   char fpath[PATH_MAX];
-  sprintf(fpath, "%s%s", tvbbl_dir, path);
+  sprintf(fpath, "%s%s", data_dir, path);
 
-  fd = creat(fpath, 0777);
+  fd = creat(fpath, 0700);
   if (fd == -1)
     return -errno;
 
@@ -144,14 +135,14 @@ static int tvbbl_create(const char *path, mode_t mode, struct fuse_file_info *fi
   return 0;
 }
 
-static int tvbbl_open(const char *path, struct fuse_file_info *fi) {
+static int enc_dir_open(const char *path, struct fuse_file_info *fi) {
   if (strcmp(path, "/.validation_file") == 0) {
     return -1;
   }
 
   char dec_path[PATH_MAX], enc_path[PATH_MAX];
-  sprintf(enc_path, "%s%s", tvbbl_dir, path);
-  sprintf(dec_path, "%s/dec_%s", tvbbl_dir, ++path);
+  sprintf(enc_path, "%s%s", data_dir, path);
+  sprintf(dec_path, "%s%s_dec", data_dir, path);
 
   if (decrypt_file(enc_path, dec_path, key) != 0) {
     return -1;
@@ -163,14 +154,14 @@ static int tvbbl_open(const char *path, struct fuse_file_info *fi) {
   return 0;
 }
 
-static int tvbbl_release(const char* path, struct fuse_file_info *fi) {
+static int enc_dir_release(const char* path, struct fuse_file_info *fi) {
   if (strcmp(path, "/.validation_file") == 0) {
     return -1;
   }
 
   char dec_path[PATH_MAX], enc_path[PATH_MAX];
-  sprintf(dec_path, "%s%s", tvbbl_dir, path);
-  sprintf(enc_path, "%s/enc_%s", tvbbl_dir, ++path);
+  sprintf(dec_path, "%s%s", data_dir, path);
+  sprintf(enc_path, "%s%s_enc", data_dir, path);
 
   if (encrypt_file(dec_path, enc_path, key) != 0) {
     return 1;
@@ -182,11 +173,11 @@ static int tvbbl_release(const char* path, struct fuse_file_info *fi) {
   return 0;
 }
 
-static int tvbbl_rename(const char *oldpath, const char *newpath) {
+static int enc_dir_rename(const char *oldpath, const char *newpath) {
   char oldfpath[PATH_MAX];
   char newfpath[PATH_MAX];
-  sprintf(oldfpath, "%s%s", tvbbl_dir, oldpath);
-  sprintf(newfpath, "%s%s", tvbbl_dir, newpath);
+  sprintf(oldfpath, "%s%s", data_dir, oldpath);
+  sprintf(newfpath, "%s%s", data_dir, newpath);
   int res = rename(oldfpath, newfpath);
   if (res == -1)
     return -errno;
@@ -194,18 +185,18 @@ static int tvbbl_rename(const char *oldpath, const char *newpath) {
   return 0;
 }
 
-static void tvbbl_destroy(void *private_data) {
+static void enc_dir_destroy(void *private_data) {
   printf("unmounting filesystem...\n");
   explicit_bzero(key, crypto_secretstream_xchacha20poly1305_KEYBYTES);
 }
 
 int validate_key() {
   char * validation_filename = ".validation_file";
-  size_t len_directory_path = strlen(tvbbl_dir);
+  size_t len_directory_path = strlen(data_dir);
 
   char dec_path[PATH_MAX], enc_path[PATH_MAX];
-  sprintf(enc_path, "%s/%s", tvbbl_dir, validation_filename);
-  sprintf(dec_path, "%s/dec_%s", tvbbl_dir, validation_filename);
+  sprintf(enc_path, "%s/%s", data_dir, validation_filename);
+  sprintf(dec_path, "%s/%s_dec", data_dir, validation_filename);
 
   if (decrypt_file(enc_path, dec_path, key) != 0) {
     return -1;
@@ -223,7 +214,7 @@ int validate_key() {
     return -1;
   }
   buf[len_directory_path] = '\0';
-  if(strcmp(buf, tvbbl_dir) != 0) {
+  if(strcmp(buf, data_dir) != 0) {
     return -1;
   }
   close(fd);
@@ -232,30 +223,30 @@ int validate_key() {
   return 0;
 }
 
-static struct fuse_operations tvbbl_oper = {
-  .getattr	= tvbbl_getattr,
-  .open		= tvbbl_open,
-  .read		= tvbbl_read,
-  .write		= tvbbl_write,
-  .create		= tvbbl_create,
-  .truncate   = tvbbl_truncate,
-  .utimens    = tvbbl_utimens,
-  .readdir    = tvbbl_readdir,
-  .unlink     = tvbbl_unlink,
-  .release    = tvbbl_release,
-  .rename     = tvbbl_rename,
-  .destroy    = tvbbl_destroy,
+static struct fuse_operations enc_dir_oper = {
+  .getattr	= enc_dir_getattr,
+  .open		= enc_dir_open,
+  .read		= enc_dir_read,
+  .write		= enc_dir_write,
+  .create		= enc_dir_create,
+  .truncate   = enc_dir_truncate,
+  .utimens    = enc_dir_utimens,
+  .readdir    = enc_dir_readdir,
+  .unlink     = enc_dir_unlink,
+  .release    = enc_dir_release,
+  .rename     = enc_dir_rename,
+  .destroy    = enc_dir_destroy,
 };
 
 int main(int argc, char *argv[]) {
-  if(argc != 5) {
+  if(argc != 4) {
     fprintf(stderr, "command line arguments\n");
     exit(EXIT_FAILURE);
   }
 
-  char * fuse_arguments[3] = {argv[0], argv[1],argv[2]};
-  tvbbl_dir = strdup(argv[3]);
-  int pipe_fd = atoi(argv[4]);
+  char * fuse_arguments[2] = {argv[0], argv[1]};
+  data_dir = strdup(argv[2]);
+  int pipe_fd = atoi(argv[3]);
   
   uint8_t buffer[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
@@ -263,6 +254,7 @@ int main(int argc, char *argv[]) {
     perror("error reading key from pipe");
     exit(EXIT_FAILURE);
   }
+  close(pipe_fd);
 
   memcpy(key, buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
   explicit_bzero(buffer, crypto_secretstream_xchacha20poly1305_KEYBYTES);
@@ -274,7 +266,6 @@ int main(int argc, char *argv[]) {
   }
   printf("validated\n");
 
-  close(pipe_fd);
-  return fuse_main(3, fuse_arguments, &tvbbl_oper, NULL);
+  return fuse_main(2, fuse_arguments, &enc_dir_oper, NULL);
   
 }
