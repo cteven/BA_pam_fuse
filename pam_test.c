@@ -42,6 +42,26 @@ void exit_pam(char * msg) {
   explicit_bzero(hash, HASHLEN);
 }
 
+struct passwd * get_user_info(pam_handle_t *pamh) {
+  struct passwd * pw;
+  const char *user;
+  if (pam_get_user(pamh, &user, NULL) != PAM_SUCCESS)
+  {
+    exit_pam("failed to get username\n");
+    return NULL;
+  }
+  if ((pw = getpwnam(user)) == NULL)
+  {
+    exit_pam("couldn't find username\n");
+    return NULL;
+  }
+  if (strcmp(pw->pw_name, "root") == 0 ){
+    exit_pam("fuse not working for root\n");
+    return NULL;
+  }
+  return pw;
+}
+
 int is_fuse_running(char * directory) {
   struct statfs fuse_info;
 
@@ -95,10 +115,8 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
   if (ret == 0) { // directory exists
     if(access(directory, R_OK) == -1)
       return 0; // PAM Module doesnt have read permissions, so the directory and validation file was already created in the past
-    
-    return 0;
   }
-  if(ret == -1) {
+  else if(ret == -1) {
     perror("accessing directory");
   }
   
@@ -106,11 +124,11 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
   if (ret == 0) {
     return 0;
   }
-  if(ret == -1) {
+  else if(ret == -1) {
     perror("access");
   }
 
-  int fd = open(filename_dec, O_WRONLY | O_CREAT, S_IRWXU | S_IRGRP | S_IWGRP);
+  int fd = open(filename_dec, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
   if (fd == -1) {
     return -1;
   }
@@ -123,6 +141,7 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
   close(fd);
 
   encrypt_file(filename_dec, filename_enc, hash);
+  unlink(filename_dec);
 
   int fd2 = open(filename_enc, O_RDONLY);
   if (fd == -1) {
@@ -130,12 +149,14 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
   }
 
   int immutable_flag = FS_IMMUTABLE_FL;
-  if (ioctl(fd2,FS_IOC_SETFLAGS, &immutable_flag) == -1) {
+  int m = ioctl(fd2,FS_IOC_SETFLAGS, &immutable_flag);
+  if (m == -1) {
     perror("ioctl");
     return -1;
   }
 
-  unlink(filename_dec);
+  close(fd2);
+
   return 0;
 }
 
@@ -144,27 +165,16 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
 // also runs this function, when user PW is wrong
 int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   struct passwd *pw;
-  const char *user;
-  if (pam_get_user(pamh, &user, NULL) != PAM_SUCCESS)
-  {
-    exit_pam("failed to get username\n");
+  pw = get_user_info(pamh);
+  if (pw == NULL) {
     return PAM_IGNORE;
   }
-  if ((pw = getpwnam(user)) == NULL)
-  {
-    exit_pam("couldn't find username\n");
-    return PAM_IGNORE;
-  }
-  if (strcmp(pw->pw_name, "root") == 0 ){
-    exit_pam("fuse not working for root\n");
-    return PAM_IGNORE;
-  }
-
+  
   // create directory to mount fuse on
-  char dir_name[PATH_MAX];
-  sprintf(dir_name, MOUNT_DIRECTORY, pw->pw_name);
+  char mount_dir_name[PATH_MAX];
+  sprintf(mount_dir_name, MOUNT_DIRECTORY, pw->pw_name);
 
-  if ( is_fuse_running(dir_name) == 1) {
+  if ( is_fuse_running(mount_dir_name) == 1) {
     printf("fuse is running already\n");
     return PAM_IGNORE;
   }
@@ -176,7 +186,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
   compute_hash(password);
 
   // create directories to save data and to mount the filesystem on
-  int s_dir = mkdir(dir_name, 0770);
+  int s_dir = mkdir(mount_dir_name, 0770);
   if ( s_dir == -1 && errno != EEXIST ) {
       exit_pam("failed to create mount directory\n");
       return PAM_IGNORE;
@@ -206,7 +216,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
   }
 
   // change directories owner and group
-  chown(dir_name, pw->pw_uid, pw->pw_gid);
+  chown(mount_dir_name, pw->pw_uid, pw->pw_gid);
   chown(data_dir_name, pw->pw_uid, pw->pw_gid);
   
   // create pipe and write pipe file descriptor to a string variable
@@ -226,7 +236,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     setgid(pw->pw_gid);
     setuid(pw->pw_uid);
 
-    execl("/usr/bin/testfuse", "/usr/bin/testfuse", "-f", dir_name, data_dir_name, read_end_pipe_fd, NULL); //"/home/mountpoint"
+    execl("/usr/bin/testfuse", "/usr/bin/testfuse",  mount_dir_name, data_dir_name, read_end_pipe_fd, NULL); //"/home/mountpoint"
     perror("error starting fuse perror \n");
     exit_pam("error starting fuse\n");
     return PAM_IGNORE;
@@ -237,6 +247,12 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     perror("error writing key from pipe");
     return PAM_IGNORE;
   }
+
+  puts("geschriebener Schlüssel");
+  for (int i = 0; i < crypto_secretstream_xchacha20poly1305_KEYBYTES; i++)
+  {
+    printf("%02x ", hash[i]);
+  }puts("");
   
   close(pipefd[0]);
   close(pipefd[1]);
@@ -249,19 +265,8 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 /* PAM entry point for session cleanup */
 int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   struct passwd *pw;
-  const char *user;
-  if (pam_get_user(pamh, &user, NULL) != PAM_SUCCESS)
-  {
-      exit_pam("failed to get username\n");
-      return PAM_IGNORE;
-  }
-  if ((pw = getpwnam(user)) == NULL)
-  {
-      exit_pam("couldn't find username\n");
-      return PAM_IGNORE;
-  }
-  if (strcmp(pw->pw_name, "root") == 0 ){
-    exit_pam("fuse not working for root\n");
+  pw = get_user_info(pamh);
+  if (pw == NULL) {
     return PAM_IGNORE;
   }
 
