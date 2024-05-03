@@ -247,12 +247,6 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     perror("error writing key from pipe");
     return PAM_IGNORE;
   }
-
-  puts("geschriebener Schlüssel");
-  for (int i = 0; i < crypto_secretstream_xchacha20poly1305_KEYBYTES; i++)
-  {
-    printf("%02x ", hash[i]);
-  }puts("");
   
   close(pipefd[0]);
   close(pipefd[1]);
