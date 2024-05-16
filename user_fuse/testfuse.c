@@ -127,11 +127,13 @@ static int enc_dir_create(const char *path, mode_t mode, struct fuse_file_info *
   char fpath[PATH_MAX];
   sprintf(fpath, "%s%s", data_dir, path);
 
-  fd = creat(fpath, 0700);
-  if (fd == -1)
+  fd = open(fpath, fi->flags, S_IRWXU);
+  if (fd == -1 ) {
     return -errno;
+  }
 
-  close(fd);
+  fi->fh = fd;
+  
   return 0;
 }
 
