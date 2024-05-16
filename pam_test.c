@@ -167,7 +167,7 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
 /* PAM entry point for authentication verification */
 // gets called in a situation where the user has to put in their PW
 // also runs this function, when user PW is wrong
-int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   pw = get_user_info(pamh);
   if (pw == NULL) {
     return PAM_IGNORE;
@@ -260,7 +260,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 }
 
 /* PAM entry point for session cleanup */
-int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
   pw = get_user_info(pamh);
   if (pw == NULL) {
     return PAM_IGNORE;
