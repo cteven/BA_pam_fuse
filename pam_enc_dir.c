@@ -68,7 +68,6 @@ int is_fuse_running(char * directory) {
   struct statfs fuse_info;
 
   if (statfs(directory, &fuse_info) !=0 ) {
-    perror("statfs");
     return -1;
   }
   if (fuse_info.f_type == FUSE_SUPER_MAGIC) { // fuse is running
@@ -118,16 +117,10 @@ int create_and_encrypt_validation_file(char directory[PATH_MAX], char * content)
     if(access(directory, R_OK) == -1)
       return 0; // PAM Module doesnt have read permissions, so the directory and validation file was already created in the past
   }
-  else if(ret == -1) {
-    perror("accessing directory");
-  }
   
   ret = access(filename_enc, F_OK);
   if (ret == 0) {
     return 0;
-  }
-  else if(ret == -1) {
-    perror("access");
   }
 
   int fd = open(filename_dec, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
