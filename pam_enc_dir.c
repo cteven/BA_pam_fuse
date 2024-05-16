@@ -239,7 +239,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
     setgid(pw->pw_gid);
     setuid(pw->pw_uid);
 
-    execl("/usr/bin/testfuse", "/usr/bin/testfuse",  mount_dir_name, data_dir_name, read_end_pipe_fd, NULL); //"/home/mountpoint"
+    execl("/usr/bin/enc_dir_fuse", "/usr/bin/enc_dir_fuse",  mount_dir_name, data_dir_name, read_end_pipe_fd, NULL); //"/home/mountpoint"
     perror("error starting fuse perror \n");
     exit_pam("error starting fuse\n");
     return PAM_IGNORE;
