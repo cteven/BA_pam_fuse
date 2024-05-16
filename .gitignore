@@ -1,8 +1,2 @@
 libsodium*
-phc-winner*
-.vscode*
-vcpkg
-*.so
-tesfuse
-./testing
-./encryptiontest
+pam_enc_dir.so
