@@ -3,8 +3,6 @@
 sudo apt-get install libpam0g-dev
 sudo apt-get install libfuse-dev -y
 
-git submodule init
-git submodule update
 
 cd phc-winner-argon2
 make
