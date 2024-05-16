@@ -28,6 +28,21 @@ cd ../enc_dir_fuse
 
 if [[ -f /etc/pam.d/common-session ]] 
 then 
-  echo "session optional pam_enc_dir.so" >> /etc/pam.d/common-session
-  echo "auth optional pam_enc_dir.so" >> /etc/pam.d/common-auth
+  if [[ $(cat /etc/pam.d/common-session | grep pam_enc_dir.so | wc -l) -lt 1 ]] 
+  then 
+    echo "session optional pam_enc_dir.so" >> /etc/pam.d/common-session
+  fi
+  if [[ $(cat /etc/pam.d/common-auth | grep pam_enc_dir.so | wc -l) -lt 1 ]] 
+  then 
+    echo "auth optional pam_enc_dir.so" >> /etc/pam.d/common-auth
+  fi
+else
+  if [[ $(cat /etc/pam.conf | grep "session optional pam_enc_dir.so" | wc -l) -lt 1 ]] 
+  then 
+    echo "common-session session optional pam_enc_dir.so" >> /etc/pam.conf
+  fi
+  if [[ $(cat /etc/pam.conf | grep "auth optional pam_enc_dir.so" | wc -l) -lt 1 ]] 
+  then 
+    echo "common-auth auth optional pam_enc_dir.so" >> /etc/pam.conf
+  fi  
 fi
