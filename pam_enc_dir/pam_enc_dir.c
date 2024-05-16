@@ -187,9 +187,6 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
       exit_pam("failed to create mount directory\n");
       return PAM_IGNORE;
   }
-  // else {
-  //   printf("private files will be visible in %s\n", dir_name);
-  // }
 
   // create directory to save data in
   char data_dir_name[PATH_MAX];
@@ -200,9 +197,6 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
       exit_pam("failed to create data directory\n");
       return PAM_IGNORE;
   }
-  // else {
-  //   printf("private files will be saved in %s\n", data_dir_name);
-  // }
 
   // create and encrypt the validation file in the .private directory
   if (create_and_encrypt_validation_file(data_dir_name, data_dir_name) != 0 ) {
