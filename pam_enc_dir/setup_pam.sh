@@ -4,7 +4,7 @@ PAM_MODULES_DIR=$(dirname $(find /usr -name pam_unix.so))
 
 echo $PAM_MODULES_DIR/pam_enc_dir.so
 
-gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so pam_enc_dir.c ./utils/enc_utils.c phc-winner-argon2/libargon2.so.1 -lsodium
+gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so pam_enc_dir.c ../utils/enc_utils.c ../phc-winner-argon2/libargon2.so.1 -lsodium
 
 if [[ -f $PAM_MODULES_DIR/pam_enc_dir.so ]] # delete old pam module
 then 
