@@ -79,7 +79,7 @@ int is_fuse_running(char * directory) {
 
 int compute_hash(const char * password) {
   uint8_t salt[SALTLEN];
-  memset( salt, 0x00, SALTLEN );
+  memset( salt, 0x74, SALTLEN );
 
   uint8_t *pwd = (uint8_t *)strdup(password);
   if(pwd == NULL) {
@@ -88,9 +88,9 @@ int compute_hash(const char * password) {
   }
   uint32_t pwdlen = strlen((char *)password);
 
-  uint32_t t_cost = 2;            // 2-pass computation
-  uint32_t m_cost = (1<<16);      // 64 mebibytes memory usage
-  uint32_t parallelism = 1;       // number of threads and lanes
+  uint32_t t_cost = 1;            // 2-pass computation
+  uint32_t m_cost = (1<<21);      // 64 mebibytes memory usage
+  uint32_t parallelism = 4;       // number of threads and lanes
   
   // high-level API
   int ret = argon2i_hash_raw(t_cost, m_cost, parallelism, pwd, pwdlen, salt, SALTLEN, hash, HASHLEN);
@@ -189,7 +189,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
   compute_hash(password);
 
   // create directories to save data and to mount the filesystem on
-  int s_dir = mkdir(mount_dir_name, 0700);
+  int s_dir = mkdir(mount_dir_name, 0770);
   if ( s_dir == -1 && errno != EEXIST ) {
       exit_pam("failed to create mount directory\n");
       return PAM_IGNORE;
@@ -202,7 +202,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
   char data_dir_name[PATH_MAX];
   sprintf(data_dir_name, DATA_DIRECTORY, pw->pw_name);
 
-  s_dir = mkdir(data_dir_name, 0700);
+  s_dir = mkdir(data_dir_name, 0770);
   if ( s_dir == -1 && errno != EEXIST ) {
       exit_pam("failed to create data directory\n");
       return PAM_IGNORE;
