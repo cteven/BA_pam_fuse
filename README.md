@@ -1,12 +1,16 @@
+Bachelorarbeit von Steven Schulz, Berliner Hochschule für Technik zum Thema "Transparente Verschlüsselung von Benutzerordnern unter dem Betriebssystem Linux".
+Das geschriebene Skript installiert eine Anwendung, die im Nutzerverzeichnis zwei Ordner anlegt, "private" und ".private". Der "private" Ordner kann dazu genutzt werden, in Dateien zu schreiben, lesen, sie umzunennen, zu löschen und anzulegen. Dateien werden beim Schließen verschlüsselt und beim Öffnen entschlüsselt, während der Nutzer dies nicht wahrnimmt. Der ".private" Ordner sollte nicht genutzt werden, denn darin liegen die Dateien in verschlüsselter Form.
+Die Anwendung wird bei jedem Authentifizieren gestartet und mountet ein Dateisystem auf das "private" Verzeichnis. Bei jedem Logout wird das Dateisystem von dem Verzeichnis getrennt.
+
 Requirements:
 - gcc
 - pkg-config
 - wget
 
 Steps:
-  - git submodule init
-  - git submodule update
-  - sudo ./setup.sh
+  - `git submodule init`
+  - `git submodule update`
+  - `sudo ./setup.sh`
 
 Das `setup.sh` Skript geht folgende Schritte durch:
   - installiert development Libraries von PAM
