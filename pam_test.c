@@ -189,7 +189,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
   compute_hash(password);
 
   // create directories to save data and to mount the filesystem on
-  int s_dir = mkdir(mount_dir_name, 0770);
+  int s_dir = mkdir(mount_dir_name, 0700);
   if ( s_dir == -1 && errno != EEXIST ) {
       exit_pam("failed to create mount directory\n");
       return PAM_IGNORE;
@@ -202,7 +202,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
   char data_dir_name[PATH_MAX];
   sprintf(data_dir_name, DATA_DIRECTORY, pw->pw_name);
 
-  s_dir = mkdir(data_dir_name, 0770);
+  s_dir = mkdir(data_dir_name, 0700);
   if ( s_dir == -1 && errno != EEXIST ) {
       exit_pam("failed to create data directory\n");
       return PAM_IGNORE;
