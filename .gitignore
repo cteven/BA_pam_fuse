@@ -1,2 +1,2 @@
-libsodium*
 pam_enc_dir.so
+enc_dir_fuse/enc_dir_fuse
