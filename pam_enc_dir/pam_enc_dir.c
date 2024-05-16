@@ -23,7 +23,7 @@
 #include <sys/ioctl.h>
 #include <linux/fs.h>
 
-#include "utils/enc_utils.h"
+#include "../utils/enc_utils.h"
 #include "argon2.h"
 
 #define FUSE_SUPER_MAGIC 0x65735546

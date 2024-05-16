@@ -1,27 +1,25 @@
 #!/bin/bash
 
-# gcc -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so ../phc-winner-argon2/libargon2.a pam_enc_dir.c
-# gcc -L/home/steven/github/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so pam_enc_dir.c -largon2
-# gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so pam_enc_dir.c phc-winner-argon2/libargon2.so.1
-# rm /lib/x86_64-linux-gnu/security/pam_enc_dir.so
-# cp pam_enc_dir.so /lib/x86_64-linux-gnu/security/pam_enc_dir.so
-# chown root:root /lib/x86_64-linux-gnu/security/pam_enc_dir.so
-# chmod 755 /lib/x86_64-linux-gnu/security/pam_enc_dir.so
+sudo apt-get install libpam0g-dev
+sudo apt-get install libfuse-dev -y
 
-PAM_MODULES_DIR=$(dirname $(find /usr -name pam_unix.so))
+git submodule init
+git submodule update
 
-echo $PAM_MODULES_DIR/pam_enc_dir.so
+cd phc-winner-argon2
+make
+sudo make install PREFIX=/usr 
+make test
 
-gcc -L/phc-winner-argon2 -Wall -fPIC -DPIC -shared -pthread -rdynamic -o pam_enc_dir.so pam_enc_dir.c ./utils/enc_utils.c phc-winner-argon2/libargon2.so.1 -lsodium
+cd ../pam_enc_dir
+./setup_pam.sh
 
-if [[ -f $PAM_MODULES_DIR/pam_enc_dir.so ]] # maybe useless
+cd ../enc_dir_fuse
+./setup_fuse.sh
+
+
+if [[ -f /etc/pam.d/common-session ]] # delete old pam module
 then 
-  rm $PAM_MODULES_DIR/pam_enc_dir.so 
+  echo "session optional pam_enc_dir.so" >> /etc/pam.d/common-session
+  echo "auth optional pam_enc_dir.so" >> /etc/pam.d/common-auth
 fi
-
-cp pam_enc_dir.so $PAM_MODULES_DIR
-chown root:root $PAM_MODULES_DIR/pam_enc_dir.so
-chmod 644 $PAM_MODULES_DIR/pam_enc_dir.so
-
-cd enc_dir_fuse
-./script.sh
