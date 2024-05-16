@@ -8,21 +8,24 @@ cd phc-winner-argon2
 make
 make install PREFIX=/usr 
 make test
-
 cd ..
+
 wget "https://download.libsodium.org/libsodium/releases/libsodium-1.0.19.tar.gz"
 tar -xvzf libsodium-1.0.19.tar.gz 
 cd libsodium-stable
 ./configure
 make && make install
 ldconfig
+cd ..
+
 rm -rf libsodium-stable
 rm libsodium-1.0.19.tar.gz
 
-cd ../pam_enc_dir
+cd pam_enc_dir
 ./setup_pam.sh
+cd ..
 
-cd ../enc_dir_fuse
+cd enc_dir_fuse
 ./setup_fuse.sh
 
 
