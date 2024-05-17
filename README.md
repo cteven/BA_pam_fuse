@@ -1,16 +1,24 @@
+# Transparente Verschlüsselung von Benutzerordnern unter dem Betriebssystem Linux
+
 Bachelorarbeit von Steven Schulz, Berliner Hochschule für Technik zum Thema "Transparente Verschlüsselung von Benutzerordnern unter dem Betriebssystem Linux".
 Das geschriebene Skript installiert eine Anwendung, die im Nutzerverzeichnis zwei Ordner anlegt, "private" und ".private". Der "private" Ordner kann dazu genutzt werden, in Dateien zu schreiben, lesen, sie umzunennen, zu löschen und anzulegen. Dateien werden beim Schließen verschlüsselt und beim Öffnen entschlüsselt, während der Nutzer dies nicht wahrnimmt. Der ".private" Ordner sollte nicht genutzt werden, denn darin liegen die Dateien in verschlüsselter Form.
 Die Anwendung wird bei jedem Authentifizieren gestartet und mountet ein Dateisystem auf das "private" Verzeichnis. Bei jedem Logout wird das Dateisystem von dem Verzeichnis getrennt.
 
 Requirements:
+- git
 - gcc
 - pkg-config
 - wget
 
-Steps:
+Steps, falls das **GitHub Repository** geklont wurde:
   - `git submodule init`
   - `git submodule update`
   - `sudo ./setup.sh`
+
+Steps, falls die **Zip-Datei** der Bachelorarbeit genutzt wurde:
+  - `git clone git@github.com:P-H-C/phc-winner-argon2.git`
+    - Klonen vom [Argon2 Repository](https://github.com/P-H-C/phc-winner-argon2?tab=readme-ov-file)
+  
 
 Das `setup.sh` Skript geht folgende Schritte durch:
   - installiert development Libraries von PAM
